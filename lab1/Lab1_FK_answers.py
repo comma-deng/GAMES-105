@@ -72,9 +72,34 @@ def part2_forward_kinematics(joint_name, joint_parent, joint_offset, motion_data
     Tips:
         1. joint_orientations的四元数顺序为(x, y, z, w)
     """
-    joint_positions = None
+    joint_positions = []
     joint_orientations = None
-    return joint_positions, joint_orientations
+    joint_rot = []
+    # the rotation of a node is parent.rotation * self.rotation
+    # the postion of a node is parent.rotation * self.offset
+    motion_frame = motion_data[frame_id]
+    joint_positions.append(motion_frame[0:3])
+
+    data_idx=1
+    for name_idx in range(len(joint_name)):
+        cur_name = joint_name[name_idx]
+        cur_rot_parent = joint_rot[joint_parent[name_idx]] if joint_parent[name_idx] >= 0 else R.from_euler('zyx', [0,0,0])
+        cur_position = cur_rot_parent.apply(joint_offset[name_idx])
+        joint_positions.append(cur_position)
+        if cur_name.endswith("_end"):
+            joint_rot.append(joint_rot[joint_parent])
+        else:
+            cur_rot = R.from_euler('zyx', motion_data[data_idx*3:data_idx*3+3], degrees=True)       
+            joint_rot.append(cur_rot_parent * cur_rot)
+            data_idx += 1
+
+    # reshape joint_positions and joint_orientations
+    joint_positions = [pos.reshape(1,-1) for pos in joint_positions]
+    joint_positions = np.concatenate(joint_positions, axis=0)
+    joint_orientations = [rot.as_quat() for rot in joint_rot]
+    joint_orientations = np.concatenate(joint_orientations, axis=0)
+
+    return joint_positions, joint_orientations 
 
 
 def part3_retarget_func(T_pose_bvh_path, A_pose_bvh_path):

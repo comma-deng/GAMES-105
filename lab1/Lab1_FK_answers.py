@@ -54,9 +54,9 @@ def part1_calculate_T_pose(bvh_file_path):
                 offset = line.split()
                 joint_offset.append([float(offset[1]), float(offset[2]), float(offset[3])])
 
-    print(joint_name)
-    print(joint_parent)
-    print(joint_offset)
+    # print(joint_name)
+    # print(joint_parent)
+    # print(joint_offset)
     joint_offset = np.array(joint_offset)
     return joint_name, joint_parent, joint_offset
 
@@ -76,29 +76,31 @@ def part2_forward_kinematics(joint_name, joint_parent, joint_offset, motion_data
     joint_orientations = None
     joint_rot = []
     # the rotation of a node is parent.rotation * self.rotation
-    # the postion of a node is parent.rotation * self.offset
+    # the postion of a node is parent.rotation * self.offset + parent.position
     motion_frame = motion_data[frame_id]
     joint_positions.append(motion_frame[0:3])
-
-    data_idx=1
-    for name_idx in range(len(joint_name)):
+    joint_rot.append(R.from_euler('xyz', motion_frame[3:6], degrees=True) )
+    data_idx=2
+    for name_idx in range(1,len(joint_name)):
         cur_name = joint_name[name_idx]
-        cur_rot_parent = joint_rot[joint_parent[name_idx]] if joint_parent[name_idx] >= 0 else R.from_euler('zyx', [0,0,0])
-        cur_position = cur_rot_parent.apply(joint_offset[name_idx])
+        cur_rot_parent = joint_rot[joint_parent[name_idx]]
+        cur_pos_parent = joint_positions[joint_parent[name_idx]]
+        cur_position = cur_rot_parent.apply(joint_offset[name_idx]) + cur_pos_parent
         joint_positions.append(cur_position)
         if cur_name.endswith("_end"):
-            joint_rot.append(joint_rot[joint_parent])
+            joint_rot.append(joint_rot[joint_parent[name_idx]])
         else:
-            cur_rot = R.from_euler('zyx', motion_data[data_idx*3:data_idx*3+3], degrees=True)       
+            cur_rot = R.from_euler('xyz', motion_frame[data_idx*3:data_idx*3+3], degrees=True)       
             joint_rot.append(cur_rot_parent * cur_rot)
             data_idx += 1
 
     # reshape joint_positions and joint_orientations
     joint_positions = [pos.reshape(1,-1) for pos in joint_positions]
     joint_positions = np.concatenate(joint_positions, axis=0)
-    joint_orientations = [rot.as_quat() for rot in joint_rot]
+    joint_orientations = [rot.as_quat().reshape(1,-1) for rot in joint_rot]
     joint_orientations = np.concatenate(joint_orientations, axis=0)
-
+    # print(joint_positions)
+    # print(joint_orientations)
     return joint_positions, joint_orientations 
 
 

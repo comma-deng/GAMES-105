@@ -54,9 +54,9 @@ def part1_calculate_T_pose(bvh_file_path):
                 offset = line.split()
                 joint_offset.append([float(offset[1]), float(offset[2]), float(offset[3])])
 
-    print(joint_name)
-    print(joint_parent)
-    print(joint_offset)
+    # print(joint_name)
+    # print(joint_parent)
+    # print(joint_offset)
     joint_offset = np.array(joint_offset)
     return joint_name, joint_parent, joint_offset
 
@@ -79,10 +79,9 @@ def part2_forward_kinematics(joint_name, joint_parent, joint_offset, motion_data
     # the postion of a node is parent.rotation * self.offset + parent.position
     motion_frame = motion_data[frame_id]
     joint_positions.append(motion_frame[0:3])
-    joint_rot.append(R.from_euler('xyz', motion_frame[3:6], degrees=True) )
+    joint_rot.append(R.from_euler('XYZ', motion_frame[3:6], degrees=True) )
     data_idx=2
     for name_idx in range(1,len(joint_name)):
-        print(name_idx, data_idx)
         cur_name = joint_name[name_idx]
         cur_rot_parent = joint_rot[joint_parent[name_idx]]
         cur_pos_parent = joint_positions[joint_parent[name_idx]]
@@ -91,7 +90,7 @@ def part2_forward_kinematics(joint_name, joint_parent, joint_offset, motion_data
         if cur_name.endswith("_end"):
             joint_rot.append(joint_rot[joint_parent[name_idx]])
         else:
-            cur_rot = R.from_euler('xyz', motion_frame[data_idx*3:data_idx*3+3], degrees=True)       
+            cur_rot = R.from_euler('XYZ', motion_frame[data_idx*3:data_idx*3+3], degrees=True)       
             joint_rot.append(cur_rot_parent * cur_rot)
             data_idx += 1
 
@@ -121,7 +120,6 @@ def part3_retarget_func(T_pose_bvh_path, A_pose_bvh_path):
     T2A = []
     for i in range(len(T_pose_joint_name)):
         T2A.append(A_pose_joint_name.index(T_pose_joint_name[i]))
-    print(T2A)
     A_pose_motion_data = load_motion_data(A_pose_bvh_path)
     T_pose_motion_data = []
     index_lshoulder = T_pose_joint_name.index("lShoulder") + 1
@@ -135,10 +133,10 @@ def part3_retarget_func(T_pose_bvh_path, A_pose_bvh_path):
             index_A = T2A[index_T-1] + 1  # because root use 6 channel
             transformed_frame_data[index_T*3 : index_T*3+3] = frame_data[index_A*3 : index_A*3+3]
         
-        rot_lshoulder = R.from_euler('xyz', transformed_frame_data[index_lshoulder*3:index_lshoulder*3+3], degrees=True) * R.from_euler('xyz', [0, 0, -45], degrees=True)
-        transformed_frame_data[index_lshoulder*3:index_lshoulder*3+3] = rot_lshoulder.as_euler('xyz', degrees=True)
-        rot_rshoulder = R.from_euler('xyz', transformed_frame_data[index_rshoulder*3:index_rshoulder*3+3], degrees=True) * R.from_euler('xyz', [0, 0, 45], degrees=True)
-        transformed_frame_data[index_rshoulder*3:index_rshoulder*3+3] = rot_rshoulder.as_euler('xyz', degrees=True)
+        rot_lshoulder = R.from_euler('XYZ', transformed_frame_data[index_lshoulder*3:index_lshoulder*3+3], degrees=True) * R.from_euler('XYZ', [0, 0, -45], degrees=True)
+        transformed_frame_data[index_lshoulder*3:index_lshoulder*3+3] = rot_lshoulder.as_euler('XYZ', degrees=True)
+        rot_rshoulder = R.from_euler('XYZ', transformed_frame_data[index_rshoulder*3:index_rshoulder*3+3], degrees=True) * R.from_euler('XYZ', [0, 0, 45], degrees=True)
+        transformed_frame_data[index_rshoulder*3:index_rshoulder*3+3] = rot_rshoulder.as_euler('XYZ', degrees=True)
         # print(frame_data)
         # print(transformed_frame_data)
         T_pose_motion_data.append(transformed_frame_data.reshape(1,-1))

@@ -1,6 +1,18 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+def update_joint(joint_validation, joint_positions, joint_orientations, joint_eulers, joint_offset, joint_parent, idx):
+    def update_joint_internel(joint_validation, joint_positions, joint_orientations, joint_eulers, joint_offset, joint_parent, idx):
+        joint_orientations[idx] = (R.from_quat(joint_orientations[joint_parent[idx]]) * R.from_euler("XYZ", joint_eulers[idx], degrees=True)).as_quat()
+        joint_positions[idx] = joint_positions[joint_parent[idx]] + R.from_quat(joint_orientations[joint_parent[idx]]).apply(joint_offset[idx])
+        joint_validation[idx] = True
+    
+    if joint_validation[idx]:
+        return
+    if not joint_validation[joint_parent[idx]]:
+        update_joint(joint_validation, joint_positions, joint_orientations, joint_eulers, joint_offset, joint_parent, joint_parent[idx])
+    update_joint_internel(joint_validation, joint_positions, joint_orientations, joint_eulers, joint_offset, joint_parent, idx)
+    
 def part1_inverse_kinematics(meta_data, joint_positions, joint_orientations, target_pose):
     """
     完成函数，计算逆运动学
@@ -16,57 +28,63 @@ def part1_inverse_kinematics(meta_data, joint_positions, joint_orientations, tar
     """
     idx_end = meta_data.joint_name.index(meta_data.end_joint)
     it = 0
-    max_it = 1e4
-    alpha = 1e-4
+    max_it = 1e3
+    alpha = 10
     #这里假定了第一个一定是根节点
     joint_eulers = []
     joint_offset = []
     joint_path, path_name, path1, path2 = meta_data.get_path_from_root_to_end()
     joint_parent_new = meta_data.joint_parent.copy()
-    for i in range(len(path2)-1):
-        idx_l = path2[i]
-        idx_r = path2[i+1]
-        joint_parent_new[idx_r] = idx_l
-    joint_parent_new[path2[0]] = -1
+    if len(path2) > 1:
+        for i in range(len(path2)-1):
+            idx_l = path2[i]
+            idx_r = path2[i+1]
+            joint_parent_new[idx_r] = idx_l
+        joint_parent_new[path2[0]] = -1
     end_pos = joint_positions[idx_end]
-    for i in range(len(joint_offset)):
+    for i in range(len(joint_positions)):
         joint_offset.append(meta_data.joint_initial_position[i] -  meta_data.joint_initial_position[joint_parent_new[i]] if joint_parent_new[i]>=0 else meta_data.joint_initial_position[i])
         if joint_parent_new[i]>=0:
             Q_p = R.from_quat(joint_orientations[joint_parent_new[i]])
             Q_cur = R.from_quat(joint_orientations[i])
-            relative_euler = (Q_p.inv() * Q_cur).as_euler()
+            relative_euler = (Q_p.inv() * Q_cur).as_euler("XYZ")
         else:
-            relative_euler = R.from_euler("XYZ",[0,0,0])
+            relative_euler = R.from_euler("XYZ",[0,0,0],degrees=True).as_euler("XYZ")
         joint_eulers.append(relative_euler)
     while np.linalg.norm(end_pos - target_pose) > 0.01:
         if it > max_it:
+            print("exceed max iter, current error: " + str(np.linalg.norm(end_pos - target_pose)))
             break
         delta = end_pos - target_pose
         for i in range(len(joint_path)):
             cur_idx = joint_path[i]
             Q_p = joint_orientations[joint_parent_new[cur_idx]]
-            relative_euler = joint_eulers[cur_idx].as_euler()
+            relative_euler = joint_eulers[cur_idx]
             cord_x = R.from_quat(Q_p).apply(np.array([1,0,0]))
-            cord_y = (R.from_quat(Q_p) * R.from_euler(relative_euler[0],"X")).apply(np.array([0,1,0]))
-            cord_z = (R.from_quat(Q_p) * R.from_euler(relative_euler[0],"X") * R.from_euler(relative_euler[1],"Y")).apply(np.array([0,0,1]))
+            cord_y = (R.from_quat(Q_p) * R.from_euler("X",relative_euler[0],degrees=True)).apply(np.array([0,1,0]))
+            cord_z = (R.from_quat(Q_p) * R.from_euler("X",relative_euler[0],degrees=True) * R.from_euler("Y", relative_euler[1],degrees=True)).apply(np.array([0,0,1]))
 
             r = end_pos - joint_positions[cur_idx]
-            joint_eulers[i][0] -= alpha * np.dot(np.cross(cord_x, r) , delta)
-            joint_eulers[i][1] -= alpha * np.dot(np.cross(cord_y, r), delta)
-            joint_eulers[i][2] -= alpha * np.dot(np.cross(cord_z, r), delta)
+            joint_eulers[cur_idx][0] -= alpha * np.dot(np.cross(cord_x, r) , delta)
+            joint_eulers[cur_idx][1] -= alpha * np.dot(np.cross(cord_y, r), delta)
+            joint_eulers[cur_idx][2] -= alpha * np.dot(np.cross(cord_z, r), delta)
         
         #更新joint_path当中的joint_orientation, joint_position
-        for i in range(1, len(joint_path)):
+        for i in range(0, len(joint_path)):
             cur_idx = joint_path[i]
-            joint_orientations[cur_idx] = joint_orientations[joint_parent_new[cur_idx]] * R.from_euler("XYZ", joint_eulers)
+            if joint_parent_new[cur_idx] == -1:
+                continue
+            joint_orientations[cur_idx] = (R.from_quat(joint_orientations[joint_parent_new[cur_idx]]) * R.from_euler("XYZ", joint_eulers[cur_idx], degrees=True)).as_quat()
             joint_positions[cur_idx] = joint_positions[joint_parent_new[cur_idx]] + R.from_quat(joint_orientations[joint_parent_new[cur_idx]]).apply(joint_offset[cur_idx])
         end_pos = joint_positions[idx_end]
+        it += 1
     #根据joint offset 和 joint_eulers更新剩余的joint
     #遇到在joint_path内的要跳过
-    #不能使用joint_parent_new,得用meta_data.joint_parent
-    #需要建立树，方便从根节点开始更新
-    joint_orientations = R.from_euler(joint_eulers).as_quat()
-    
+
+    joint_validation = [True if i in joint_path else False for i in range(len(joint_positions))]
+
+    for idx in range(len(joint_positions)):
+        update_joint(joint_validation, joint_positions, joint_orientations, joint_eulers, joint_offset, joint_parent_new, idx)
     return joint_positions, joint_orientations
 
 def part2_inverse_kinematics(meta_data, joint_positions, joint_orientations, relative_x, relative_z, target_height):

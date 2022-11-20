@@ -1,5 +1,4 @@
 import numpy as np
-import math
 from scipy.spatial.transform import Rotation as R
 
 def update_joint_internel(joint_validation, joint_positions, joint_orientations, joint_eulers, joint_offset, joint_parent, idx):
@@ -102,7 +101,7 @@ def part1_inverse_kinematics(meta_data, joint_positions, joint_orientations, tar
         end_pos = joint_positions[idx_end]
         cur_error = np.linalg.norm(end_pos - target_pose)
         if cur_error < 1:
-            learning_rate = basic_learning_rate / math.sqrt(cur_error)
+            learning_rate = basic_learning_rate / np.sqrt(cur_error)
         it += 1
     #根据joint offset 和 joint_eulers更新剩余的joint
     joint_validation = [True if i in joint_path else False for i in range(len(joint_positions))]

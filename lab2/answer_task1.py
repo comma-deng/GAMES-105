@@ -198,16 +198,22 @@ class BVHMotion():
     
     #--------------------- 你的任务 -------------------- #
     
-    def decompose_rotation_with_yaxis(self, rotation):
+    def decompose_rotation_with_yaxis(rotation):
         '''
         输入: rotation 形状为(4,)的ndarray, 四元数旋转
         输出: Ry, Rxz，分别为绕y轴的旋转和转轴在xz平面的旋转，并满足R = Ry * Rxz
         '''
-        Ry = np.zeros_like(rotation)
-        Rxz = np.zeros_like(rotation)
-        # TODO: 你的代码
-        
-        return Ry, Rxz
+        # Ry = np.zeros_like(rotation)
+        # Rxz = np.zeros_like(rotation)
+        Ro = R.from_quat(rotation).as_matrix()
+        y_axis = Ro.dot(np.array([0,1,0]))
+        cos_val = np.dot(y_axis, np.array([0,1,0]))
+        rot_axis = np.cross(y_axis, np.array([0,1,0]))
+        rot_axis = rot_axis /  np.linalg.norm(rot_axis)
+        Ra = R.from_rotvec(np.arccos(cos_val) * rot_axis).as_matrix()
+        Ry = Ra @ Ro
+        Rxz = np.transpose(Ry) @ Ro
+        return R.from_matrix(Ry).as_quat(), R.from_matrix(Rxz).as_quat()
     
     # part 1
     def translation_and_rotation(self, frame_num, target_translation_xz, target_facing_direction_xz):

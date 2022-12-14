@@ -198,7 +198,17 @@ class BVHMotion():
     
     #--------------------- 你的任务 -------------------- #
     
-    def decompose_rotation_with_yaxis(rotation):
+    def rotate_a_to_b(self, vec_a, vec_b):
+        '''
+        输入: 两个单位向量
+        输出: 将a旋转到b的rotation
+        '''
+        cos_val = np.dot(vec_a, vec_b)
+        rot_axis = np.cross(vec_a, vec_b)
+        rot_axis = rot_axis / np.linalg.norm(rot_axis)
+        return R.from_rotvec(np.arccos(cos_val) * rot_axis)
+
+    def decompose_rotation_with_yaxis(self, rotation):
         '''
         输入: rotation 形状为(4,)的ndarray, 四元数旋转
         输出: Ry, Rxz，分别为绕y轴的旋转和转轴在xz平面的旋转，并满足R = Ry * Rxz
@@ -207,10 +217,8 @@ class BVHMotion():
         # Rxz = np.zeros_like(rotation)
         Ro = R.from_quat(rotation).as_matrix()
         y_axis = Ro.dot(np.array([0,1,0]))
-        cos_val = np.dot(y_axis, np.array([0,1,0]))
-        rot_axis = np.cross(y_axis, np.array([0,1,0]))
-        rot_axis = rot_axis /  np.linalg.norm(rot_axis)
-        Ra = R.from_rotvec(np.arccos(cos_val) * rot_axis).as_matrix()
+        rot = self.rotate_a_to_b(y_axis, np.array([0,1,0]))
+        Ra = rot.as_matrix()
         Ry = Ra @ Ro
         Rxz = np.transpose(Ry) @ Ro
         return R.from_matrix(Ry).as_quat(), R.from_matrix(Rxz).as_quat()
@@ -229,12 +237,24 @@ class BVHMotion():
             你需要完成并使用decompose_rotation_with_yaxis
             输入的target_facing_direction_xz的norm不一定是1
         '''
-        
+        # print( self.rotate_a_to_b(np.array([0,0,1]), np.array([0,1,0])).as_rotvec())
         res = self.raw_copy() # 拷贝一份，不要修改原始数据
-        
-        # 比如说，你可以这样调整第frame_num帧的根节点平移
+        Ry, Rxz = self.decompose_rotation_with_yaxis(res.joint_rotation[frame_num, 0, :])
+        source_vec = R.from_quat(Ry).apply(np.array([0,0,1]))
+        target_vec = np.array([target_facing_direction_xz[0], 0., target_facing_direction_xz[1]])
+        target_vec /= np.linalg.norm(target_vec)
+        additional_rot = self.rotate_a_to_b(source_vec, target_vec)
+        print(additional_rot.as_rotvec())
+        for i in range(len(res.joint_rotation)):
+            new_rot = additional_rot * R.from_quat(res.joint_rotation[i, 0, :])
+            res.joint_rotation[i, 0, :] = new_rot.as_quat()
+            relative_trans = res.joint_position[i, 0, :] - res.joint_position[frame_num, 0, :]
+            res.joint_position[i, 0, :] =  res.joint_position[frame_num, 0, :] + additional_rot.apply(relative_trans) 
         offset = target_translation_xz - res.joint_position[frame_num, 0, [0,2]]
         res.joint_position[:, 0, [0,2]] += offset
+        # offset = np.array([target_translation_xz[0], 0., target_translation_xz[1]]) - res.joint_position[frame_num, 0, :]
+        # offset[1] = 0.
+        # res.joint_position[:, 0, :] += additional_rot.apply(offset)
         # TODO: 你的代码
         return res
 

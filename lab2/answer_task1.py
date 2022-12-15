@@ -267,7 +267,6 @@ def blend_two_motions(bvh_motion1, bvh_motion2, alpha):
     返回的动作应该有n3帧，第i帧由(1-alpha[i]) * bvh_motion1[j] + alpha[i] * bvh_motion2[k]得到
     i均匀地遍历0~n3-1的同时，j和k应该均匀地遍历0~n1-1和0~n2-1
     '''
-    
     res = bvh_motion1.raw_copy()
     res.joint_position = np.zeros((len(alpha), res.joint_position.shape[1], res.joint_position.shape[2]))
     res.joint_rotation = np.zeros((len(alpha), res.joint_rotation.shape[1], res.joint_rotation.shape[2]))
@@ -275,6 +274,19 @@ def blend_two_motions(bvh_motion1, bvh_motion2, alpha):
 
     # TODO: 你的代码
     
+    scale1 = bvh_motion1.joint_position.shape[0] / len(alpha)
+    scale2 = bvh_motion2.joint_position.shape[0] / len(alpha)
+    for i in range(len(alpha)):
+        j = int(np.floor(scale1 * i))
+        k = int(np.floor(scale2 * i))
+        res.joint_position[i,:,:] = (1-alpha[i]) * bvh_motion1.joint_position[j,:,:] + alpha[i] * bvh_motion2.joint_position[k,:,:]
+        for n in range(res.joint_rotation.shape[1]):
+            key_rots = R.from_quat([bvh_motion1.joint_rotation[j,n,:], bvh_motion2.joint_rotation[k,n,:]])
+            key_times = [0, 1]
+            slerp = Slerp(key_times, key_rots)
+            times = [alpha[i]]
+            interp_rots = slerp(times)
+            res.joint_rotation[i,n,:] = interp_rots[0].as_quat()
     return res
 
 # part3

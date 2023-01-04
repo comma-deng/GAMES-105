@@ -1,6 +1,18 @@
 # 以下部分均为可更改部分
 
 from answer_task1 import *
+# from task2_preprocess import *
+import os
+import pickle
+
+position_weight = 0.5
+vel_weight = 0.5
+bvh_folder_path = r'motion_material\kinematic_motion'
+
+def calc_cost(motion_key_desire, motion_key_real):
+    pos_cost = np.sum(np.linalg.norm(motion_key_desire.positions - motion_key_real.positions, axis = 1))
+    vel_cost = np.sum(np.linalg.norm(motion_key_desire.velocities - motion_key_real.velocities, axis = 1))
+    return pos_cost * position_weight + vel_cost * vel_weight
 
 class CharacterController():
     def __init__(self, controller) -> None:
@@ -10,6 +22,13 @@ class CharacterController():
         self.cur_root_pos = None
         self.cur_root_rot = None
         self.cur_frame = 0
+        self.motion_keys = []
+        for file in os.listdir(bvh_folder_path):
+            if not file.endswith('keys'):
+                continue
+            f = open(os.path.join(bvh_folder_path ,file), 'rb')
+            self.motion_keys.append(pickle.load(f))
+            f.close()
         pass
     
     def update_state(self, 
@@ -39,10 +58,12 @@ class CharacterController():
             如果和你的角色动作速度对不上,你可以在init或这里对属性进行修改
         '''
         # 一个简单的例子，输出第i帧的状态
-        joint_name = self.motions[0].joint_name
-        joint_translation, joint_orientation = self.motions[0].batch_forward_kinematics()
-        joint_translation = joint_translation[self.cur_frame]
-        joint_orientation = joint_orientation[self.cur_frame]
+        # joint_name = self.motions[0].joint_name
+        # joint_translation, joint_orientation = self.motions[0].batch_forward_kinematics()
+        # joint_translation = joint_translation[self.cur_frame]
+        # joint_orientation = joint_orientation[self.cur_frame]
+
+        self.motion_keys[]
         
         self.cur_root_pos = joint_translation[0]
         self.cur_root_rot = joint_orientation[0]

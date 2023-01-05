@@ -1,7 +1,7 @@
 # 以下部分均为可更改部分
 
 from answer_task1 import *
-# from task2_preprocess import *
+from task2_preprocess import MotionKey
 import os
 import pickle
 
@@ -9,25 +9,30 @@ position_weight = 0.5
 vel_weight = 0.5
 bvh_folder_path = r'motion_material\kinematic_motion'
 
-def calc_cost(motion_key_desire, motion_key_real):
-    pos_cost = np.sum(np.linalg.norm(motion_key_desire.positions - motion_key_real.positions, axis = 1))
-    vel_cost = np.sum(np.linalg.norm(motion_key_desire.velocities - motion_key_real.velocities, axis = 1))
-    return pos_cost * position_weight + vel_cost * vel_weight
+def find_min_cost(motion_key_desire, motion_key_real):
+    pos_cost = np.sum(np.linalg.norm(motion_key_desire.positions - motion_key_real.positions, axis = 2), axis=1)
+    vel_cost = np.sum(np.linalg.norm(motion_key_desire.velocities - motion_key_real.velocities, axis = 2), axis=1)
+    res = pos_cost * position_weight + vel_cost * vel_weight
+    return np.argmin(res), res[np.argmin(res)]
 
 class CharacterController():
     def __init__(self, controller) -> None:
         self.motions = []
-        self.motions.append(BVHMotion('motion_material/walk_forward.bvh'))
+        # self.motions.append(BVHMotion('motion_material/walk_forward.bvh'))
         self.controller = controller
         self.cur_root_pos = None
         self.cur_root_rot = None
         self.cur_frame = 0
+        self.cur_seq = 0
         self.motion_keys = []
         for file in os.listdir(bvh_folder_path):
             if not file.endswith('keys'):
                 continue
             f = open(os.path.join(bvh_folder_path ,file), 'rb')
             self.motion_keys.append(pickle.load(f))
+            bvh_file_name = os.path.join(bvh_folder_path ,file.replace('keys', 'bvh'))
+            print(bvh_file_name)
+            self.motions.append(BVHMotion(bvh_file_name))
             f.close()
         pass
     
@@ -63,12 +68,48 @@ class CharacterController():
         # joint_translation = joint_translation[self.cur_frame]
         # joint_orientation = joint_orientation[self.cur_frame]
 
-        self.motion_keys[]
-        
+        #TDOD 自己的代码
+        real_key = MotionKey(1)
+        real_key.positions[0] = desired_pos_list
+        for i in range(6):
+            real_key.positions[0][5-i] -= desired_pos_list[0]
+        real_key.velocities[0] = desired_vel_list
+        real_key.tracking_joints = self.motion_keys[0].tracking_joints
+        for k in range(len(real_key.tracking_joints)):
+            joint = real_key.tracking_joints[k]
+            idx = self.motions[self.cur_seq].joint_name.index(joint)
+            real_key.joint_postions[k] = joint_translation[idx, :] - joint_translation[0, :]
+            real_key.joint_velocities[k] = (joint_translation[idx, :] - joint_translation[idx, :]) * 60
+
+        min_cost = 1e20
+        min_seq_id = -1
+        min_frame_id = -1
+        for i in range(len(self.motion_keys)):
+            motion_key = self.motion_keys[i]
+            cur_id, cur_cost = find_min_cost(motion_key, real_key)
+            if cur_cost < min_cost:
+                min_cost = cur_cost
+                min_seq_id = i
+                min_frame_id = cur_id
+
+        if min_seq_id == self.cur_seq and abs(min_frame_id-self.cur_frame) < 10:
+            self.cur_frame = (self.cur_frame + 1) % self.motions[0].motion_length
+        else:
+            self.cur_seq = min_seq_id
+            self.cur_frame = min_frame_id
+        joint_name = self.motions[self.cur_seq].joint_name
+        frame_position = self.motions[self.cur_seq].joint_position[self.cur_frame]
+        frame_position[0, [0,2]] = desired_pos_list[0, [0,2]]
+        frame_position = frame_position.reshape(1, frame_position.shape[0], frame_position.shape[1])
+        frame_rotation = self.motions[self.cur_seq].joint_rotation[self.cur_frame]
+        frame_rotation = frame_rotation.reshape(1, frame_rotation.shape[0], frame_rotation.shape[1])
+        joint_translation, joint_orientation = self.motions[self.cur_seq].batch_forward_kinematics(frame_position, frame_rotation)
+        joint_translation = joint_translation[0]
+        joint_orientation = joint_orientation[0]
         self.cur_root_pos = joint_translation[0]
         self.cur_root_rot = joint_orientation[0]
-        self.cur_frame = (self.cur_frame + 1) % self.motions[0].motion_length
-        
+        # self.cur_frame = (self.cur_frame + 1) % self.motions[0].motion_length
+        print(self.cur_frame, self.cur_seq)
         return joint_name, joint_translation, joint_orientation
     
     

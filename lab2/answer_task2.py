@@ -5,18 +5,21 @@ from task2_preprocess import MotionKey
 import os
 import pickle
 
-position_weight = 0.5
-vel_weight = 0.5
-joint_position_weight = 0.5
-joint_vel_weight = 0.5
+position_weight = 1
+vel_weight = 1
+joint_position_weight = 10
+joint_vel_weight = 10
 bvh_folder_path = r'motion_material\kinematic_motion'
 
 def find_min_cost(motion_key_desire, motion_key_real):
     pos_cost = np.sum(np.linalg.norm(motion_key_desire.positions - motion_key_real.positions, axis = 2), axis=1)
     vel_cost = np.sum(np.linalg.norm(motion_key_desire.velocities - motion_key_real.velocities, axis = 2), axis=1)
-    joint_position_cost = np.sum(np.linalg.norm(motion_key_desire.joint_postions - motion_key_real.joint_postions, axis = 1))
-    joint_vel_cost = np.sum(np.linalg.norm(motion_key_desire.joint_postions - motion_key_real.joint_postions, axis = 1))
+    joint_position_cost = np.sum(np.linalg.norm(motion_key_desire.joint_postions - motion_key_real.joint_postions, axis = 2), axis=1)
+    joint_vel_cost = np.sum(np.linalg.norm(motion_key_desire.joint_postions - motion_key_real.joint_postions, axis = 2), axis=1)
     res = pos_cost * position_weight + vel_cost * vel_weight + joint_position_weight * joint_position_cost + joint_vel_weight * joint_vel_cost
+    # print("pos_cost {0}, vel_cost {1}, joint_position_cost {2}, joint_vel_cost {3}".format(pos_cost, vel_cost, joint_position_cost, joint_vel_cost))
+    # res = joint_position_weight * joint_position_cost + joint_vel_weight * joint_vel_cost
+
     return np.argmin(res), res[np.argmin(res)]
 
 class CharacterController():
@@ -83,8 +86,8 @@ class CharacterController():
             joint = real_key.tracking_joints[k]
             idx = self.motions[self.cur_seq].joint_name.index(joint)
             joint_translation, joint_orientation = self.motions[self.cur_seq].forward_kinematics_at_index([self.cur_frame, self.cur_frame+1])
-            real_key.joint_postions[k] = joint_translation[0, idx, :] - joint_translation[0, 0, :]
-            real_key.joint_velocities[k] = (joint_translation[1, idx, :] - joint_translation[0, idx, :]) * 60
+            real_key.joint_postions[0][k] = joint_translation[0, idx, :] - joint_translation[0, 0, :]
+            real_key.joint_velocities[0][k] = (joint_translation[1, idx, :] - joint_translation[0, idx, :]) * 60
 
         min_cost = 1e20
         min_seq_id = -1
@@ -114,7 +117,7 @@ class CharacterController():
         self.cur_root_pos = joint_translation[0]
         self.cur_root_rot = joint_orientation[0]
         # self.cur_frame = (self.cur_frame + 1) % self.motions[0].motion_length
-        print(self.cur_frame, self.cur_seq)
+        # print(self.cur_frame, self.cur_seq)
         return joint_name, joint_translation, joint_orientation
     
     

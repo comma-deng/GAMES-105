@@ -12,8 +12,8 @@ class MotionKey:
         self.velocities = np.zeros((num,6,3))
         self.avelocities = np.zeros((num,6,3))
         self.tracking_joints = ['lToeJoint', 'rToeJoint']
-        self.joint_postions = np.zeros((len(self.tracking_joints), 3))
-        self.joint_velocities = np.zeros((len(self.tracking_joints), 3))
+        self.joint_postions = np.zeros((num, len(self.tracking_joints), 3))
+        self.joint_velocities = np.zeros((num, len(self.tracking_joints), 3))
         pass
 
 def main():
@@ -46,8 +46,8 @@ def main():
                 joint = motion_key.tracking_joints[k]
                 idx = motion.joint_name.index(joint)
                 # calc joint position relative to root position
-                motion_key.joint_postions[k] = joint_translation[i, idx, :] - joint_translation[i, 0, :]
-                motion_key.joint_velocities[k] = (joint_translation[i+1, idx, :] - joint_translation[i, idx, :]) * 60
+                motion_key.joint_postions[i][k] = joint_translation[i, idx, :] - joint_translation[i, 0, :]
+                motion_key.joint_velocities[i][k] = (joint_translation[i+1, idx, :] - joint_translation[i, idx, :]) * 60
 
         with open(os.path.join(bvh_folder_path, file.replace('.bvh', '.keys')), 'wb') as f:
             pickle.dump(motion_key, f)
